@@ -1,0 +1,439 @@
+/* =====================================================================
+   NETWORKIFY — app.css
+   Custom styles that Tailwind CDN cannot reach: Leaflet internals,
+   Chart.js canvas defaults, custom scrollbars, and small global resets.
+   Everything else (layout, spacing, colour, components) lives in the
+   <style> block inside index.html or as Tailwind utility classes.
+===================================================================== */
+
+/* ---------------------------------------------------------------
+   1. ROOT VARIABLES
+   Shared design tokens consumed by JS (e.g. Chart.js configs read
+   these via getComputedStyle so charts stay in sync with the theme
+   without duplicating colour values in every page script).
+--------------------------------------------------------------- */
+:root {
+  --color-bg:        #080e1a;   /* ink-950 */
+  --color-surface:   #1e293b;   /* ink-800 */
+  --color-border:    #334155;   /* ink-700 */
+  --color-text:      #f1f5f9;   /* ink-100 */
+  --color-text-dim:  #64748b;   /* ink-500 */
+  --color-brand:     #f59e0b;   /* brand-500 */
+  --color-brand-dim: #d97706;   /* brand-600 */
+
+  --color-success:   #4ade80;
+  --color-danger:    #f87171;
+  --color-warning:   #fb923c;
+  --color-info:      #60a5fa;
+
+  --chart-grid:      rgba(51, 65, 85, 0.5);
+  --chart-text:      #64748b;
+  --chart-font:      'JetBrains Mono', monospace;
+  --chart-tooltip-bg:#0f172a;
+}
+
+/* ---------------------------------------------------------------
+   2. GLOBAL RESET / BASE
+--------------------------------------------------------------- */
+html, body {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Prevent the blue tap-highlight on mobile Safari/Chrome */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Selection colour matches brand */
+::selection {
+  background: rgba(245, 158, 11, 0.3);
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------
+   3. CUSTOM SCROLLBAR (WebKit + Firefox)
+   Tailwind has no scrollbar utilities by default; this keeps the
+   whole app's scrollbars thin and on-brand.
+--------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand);
+}
+
+/* ---------------------------------------------------------------
+   4. LEAFLET DARK-THEME OVERRIDES
+   Leaflet ships hard-coded light styles for popups, controls, and
+   attribution. These selectors live inside Leaflet's own DOM, so
+   Tailwind utility classes can't reach them — only plain CSS can.
+--------------------------------------------------------------- */
+
+/* Map container base */
+.leaflet-container {
+  background: var(--color-bg) !important;
+  font-family: 'Manrope', sans-serif !important;
+}
+
+/* Tiles slightly dimmed so markers/lines pop */
+.leaflet-tile-pane {
+  filter: brightness(0.75) saturate(0.9) contrast(1.05);
+}
+
+/* Zoom controls */
+.leaflet-bar {
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.leaflet-bar a {
+  background: var(--color-surface) !important;
+  color: var(--color-brand) !important;
+  border-color: var(--color-border) !important;
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+}
+.leaflet-bar a:hover {
+  background: #334155 !important;
+  color: #fbbf24 !important;
+}
+.leaflet-bar a.leaflet-disabled {
+  color: var(--color-text-dim) !important;
+  background: var(--color-surface) !important;
+}
+
+/* Popups */
+.leaflet-popup-content-wrapper {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.leaflet-popup-content {
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.8125rem;
+  margin: 10px 14px;
+  line-height: 1.5;
+}
+.leaflet-popup-tip {
+  background: var(--color-surface);
+  box-shadow: none;
+}
+.leaflet-popup-close-button {
+  color: var(--color-text-dim) !important;
+}
+.leaflet-popup-close-button:hover {
+  color: var(--color-brand) !important;
+}
+
+/* Attribution */
+.leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.85) !important;
+  color: var(--color-text-dim) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px 0 0 0;
+}
+.leaflet-control-attribution a {
+  color: var(--color-brand) !important;
+}
+
+/* Custom marker pulse (used for facility / substation markers) */
+.nw-marker-pulse {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+}
+.nw-marker-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.5;
+  animation: nw-marker-ping 1.8s ease-out infinite;
+}
+@keyframes nw-marker-ping {
+  0%   { transform: scale(0.6); opacity: 0.6; }
+  70%  { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Marker colour variants (set via inline style="color:") */
+.nw-marker-facility    { color: #60a5fa; background: #60a5fa; }
+.nw-marker-substation  { color: #f59e0b; background: #f59e0b; }
+.nw-marker-feasible    { color: #4ade80; background: #4ade80; }
+.nw-marker-not-feasible{ color: #f87171; background: #f87171; }
+
+/* Routing line between facility and chosen substation */
+.nw-route-line {
+  stroke-dasharray: 6 6;
+  animation: nw-dash-flow 1.2s linear infinite;
+}
+@keyframes nw-dash-flow {
+  to { stroke-dashoffset: -12; }
+}
+
+/* ---------------------------------------------------------------
+   5. CHART.JS CANVAS DEFAULTS
+   Chart.js renders to <canvas>; Tailwind classes don't penetrate
+   canvas internals. JS chart configs read the --chart-* variables
+   above via getComputedStyle(document.documentElement) so colours
+   stay centralised here.
+--------------------------------------------------------------- */
+.nw-chart-container {
+  position: relative;
+  width: 100%;
+}
+.nw-chart-container canvas {
+  font-family: var(--chart-font);
+}
+
+/* Loading skeleton shown while chart data is fetched */
+.nw-chart-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 240px;
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    rgba(30, 41, 59, 0.4) 25%,
+    rgba(51, 65, 85, 0.4) 37%,
+    rgba(30, 41, 59, 0.4) 63%
+  );
+  background-size: 400% 100%;
+  animation: nw-shimmer 1.4s ease infinite;
+}
+@keyframes nw-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ---------------------------------------------------------------
+   6. SINGLE-LINE DIAGRAM (SLD) VIEWER
+   The backend returns a PNG (matplotlib + pandapower.plotting).
+   This wraps it in a pannable/zoomable frame using plain CSS,
+   since adding a JS image-pan library would mean another CDN dep.
+--------------------------------------------------------------- */
+.nw-sld-frame {
+  position: relative;
+  width: 100%;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(51,65,85,0.15) 0 10px,
+      transparent 10px 20px
+    ),
+    var(--color-bg);
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nw-sld-frame img {
+  max-width: 100%;
+  height: auto;
+  filter: drop-shadow(0 4px 24px rgba(0,0,0,0.4));
+}
+.nw-sld-frame.is-loading img {
+  opacity: 0;
+}
+.nw-sld-frame .nw-sld-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-text-dim);
+  font-family: var(--chart-font);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------
+   7. CONNECTION STATUS PULSE (Socket.IO indicator dot)
+--------------------------------------------------------------- */
+.nw-status-dot-live {
+  background: var(--color-success) !important;
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+  animation: nw-status-pulse 2s infinite;
+}
+.nw-status-dot-error {
+  background: var(--color-danger) !important;
+}
+@keyframes nw-status-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(74, 222, 128, 0.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(74, 222, 128, 0); }
+}
+
+/* ---------------------------------------------------------------
+   8. FORM ELEMENTS NOT COVERED BY TAILWIND DEFAULTS
+   Select dropdowns, checkboxes, radios, range sliders, file input —
+   browsers render these with native chrome that Tailwind can't
+   restyle via utility classes alone.
+--------------------------------------------------------------- */
+
+/* Select arrow */
+select.nw-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+/* Checkbox */
+input[type="checkbox"].nw-checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+input[type="checkbox"].nw-checkbox:checked {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+}
+input[type="checkbox"].nw-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px; top: 1px;
+  width: 5px; height: 9px;
+  border: solid #0f172a;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input[type="checkbox"].nw-checkbox:focus {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+/* Range slider (used for tap position, scaling factors) */
+input[type="range"].nw-range {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border);
+  outline: none;
+}
+input[type="range"].nw-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  cursor: pointer;
+  border: 2px solid var(--color-bg);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+input[type="range"].nw-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  cursor: pointer;
+  border: 2px solid var(--color-bg);
+}
+
+/* File input (substation CSV upload) */
+input[type="file"].nw-file {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+}
+input[type="file"].nw-file::file-selector-button {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--color-brand);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin-right: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+input[type="file"].nw-file::file-selector-button:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+/* ---------------------------------------------------------------
+   9. PRINT STYLES
+   Used when the user prints / "saves as PDF" a results page
+   directly from the browser (in addition to the backend PDF export).
+--------------------------------------------------------------- */
+@media print {
+  #sidebar, header, #toast-container, #modal-overlay,
+  .nw-btn-primary, .nw-btn-secondary, .nw-btn-danger,
+  #app-loader {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .nw-card, .nw-stat-card {
+    border: 1px solid #ccc !important;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+  .nw-table th, .nw-table td {
+    color: #000 !important;
+    border-color: #ccc !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   10. REDUCED MOTION
+   Respect the user's OS-level "reduce motion" preference for the
+   pulsing markers, shimmer skeletons, and dashed-line animations.
+--------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .nw-marker-pulse::after,
+  .nw-route-line,
+  .nw-chart-skeleton,
+  .nw-status-dot-live,
+  #loader-bar,
+  .animate-pulse {
+    animation: none !important;
+  }
+}

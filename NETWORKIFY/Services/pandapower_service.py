@@ -109,28 +109,28 @@ class PandapowerService:
                 )
 
         # Transformers
-        for t in sorted(net_row.transformers, key=lambda x: x.pp_index):
-            base = dict(
+        for t in sorted(net_row.transformers, key = lambda x: x.pp_index):
+            base= dict(
                 hv_bus = bus_id_to_pp[t.hv_bus_id],
                 lv_bus = bus_id_to_pp[t.lv_bus_id],
-                name   = t.name,
-                index  = t.pp_index,
-                parallel   = t.parallel or 1,
+                name = t.name,
+                index = t.pp_index,
+                parallel = t.parallel or 1,
                 in_service = bool(t.in_service),
+                shift_degree = getattr(t, 'shift_degree', 0.0) or 0.0,
             )
             if t.std_type:
-                pp.create_transformer(net, std_type=t.std_type, **base)
+                pp.create_transformer(net, std_type= t.std_type, **base)
             else:
                 pp.create_transformer_from_parameters(
-                    net,
-                    sn_mva       = t.sn_mva,
-                    vn_hv_kv     = t.vn_hv_kv,
-                    vn_lv_kv     = t.vn_lv_kv,
-                    vkr_percent  = t.vkr_percent or 0.5,
-                    vk_percent   = t.vk_percent  or 10.0,
-                    pfe_kw       = t.pfe_kw      or 0.0,
-                    i0_percent   = t.i0_percent  or 0.0,
-                    shift_degree = t.shift_degree or 0.0,
+                    net, 
+                    sn_mva = t.sn_mva,
+                    vn_hv_kv = t.vn_hv_kv,
+                    vn_lv_kv = t.vn_lv_kv,
+                    vkr_percent = t.vkr_percent or 0.5,
+                    vk_percent = t.vk_percent or 10.0,
+                    pfe_kw= t.pfe_kw or 0.0,
+                    i0_percent= t.i0_percent or 0.0,
                     **base,
                 )
 
@@ -196,7 +196,6 @@ class PandapowerService:
                 type   = sw.switch_type,
                 name   = sw.name,
                 index  = sw.pp_index,
-                z_ohm  = sw.z_ohm or 0.0,
             )
 
         return net
@@ -212,6 +211,14 @@ class PandapowerService:
         pandapower JSON in net_json for fidelity.
         """
         import pandapower as pp
+        def _safe_int(val, default = 0):
+            if val is None:
+                return default
+            try:
+                f = float(val)
+                return default if math.isnan(f) else int(f)
+            except(TypeError, ValueError):
+                return default
 
         net_row = db.session.get(PowerNetwork, network_id)
         if net_row is None:
@@ -263,7 +270,7 @@ class PandapowerService:
                 x_ohm_per_km= float(row.get("x_ohm_per_km", 0.0)),
                 c_nf_per_km = float(row.get("c_nf_per_km",  0.0)),
                 max_i_ka    = float(row.get("max_i_ka",    1.0)),
-                parallel    = int(row.get("parallel", 1)),
+                parallel    = _safe_int(row.get('parallel'), 1),
                 df          = float(row.get("df", 1.0)),
                 in_service  = bool(row.get("in_service", True)),
             ))
@@ -285,8 +292,8 @@ class PandapowerService:
                 i0_percent  = float(row.get("i0_percent",  0.0)),
                 shift_degree= float(row.get("shift_degree", 0.0)),
                 std_type    = row.get("std_type"),
-                tap_pos     = int(row["tap_pos"]) if row.get("tap_pos") is not None else 0,
-                parallel    = int(row.get("parallel", 1)),
+                tap_pos     = _safe_int(row.get('tap_pos', 0)),
+                parallel    = _safe_int(row.get('parallel'), 1),
                 in_service  = bool(row.get("in_service", True)),
             ))
 
@@ -345,8 +352,8 @@ class PandapowerService:
                     p_mw       = float(row.get("p_mw",   0.0)),
                     q_mvar     = float(row.get("q_mvar", 0.0)),
                     vn_kv      = float(row["vn_kv"]),
-                    step       = int(row.get("step", 1)),
-                    max_step   = int(row.get("max_step", 1)),
+                    step       = _safe_int(row.get('step'),1),
+                    max_step   = _safe_int(row.get("max_step"), 1),
                     in_service = bool(row.get("in_service", True)),
                 ))
 
@@ -362,7 +369,6 @@ class PandapowerService:
                     element_pp_index = int(row["element"]),
                     closed     = bool(row.get("closed", True)),
                     switch_type= row.get("type"),
-                    z_ohm      = float(row.get("z_ohm", 0.0)),
                 ))
 
         # Stash JSON for fidelity

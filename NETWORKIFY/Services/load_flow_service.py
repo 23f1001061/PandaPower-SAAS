@@ -48,10 +48,15 @@ class LoadFlowService:
             if cfg.get('check_violations', True):
                 cls._record_violations(job, net)
             
-
+            completed = datetime.now(timezone.utc)
+            started = job.started_at
+            if started is not None and started.tzinfo is None:
+                started = started.replace(tzinfo= timezone.utc)
             job.status = AnalysisStatus.COMPLETED
             job.completed_at = datetime.now(timezone.utc)
-            job.duration_check = (job.completed_at -job.started_at).total_seconds()
+            print("DEBUG completed_at:", repr(job.completed_at), type(job.completed_at))
+            print("DEBUG started_at:", repr(job.started_at), type(job.started_at))
+            job.duration_check = (job.completed_at.replace(tzinfo=timezone.utc) - job.started_at.replace(tzinfo=timezone.utc)).total_seconds()
             job.progress_pct = 100.0
             db.session.commit()
             return {

@@ -2,3 +2,4 @@
 .python-version
 README.md
 uv.lock
+.env

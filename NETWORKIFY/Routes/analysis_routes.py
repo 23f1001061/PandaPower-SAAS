@@ -14,7 +14,7 @@ from ._helpers import (
     require_fields,
     paginate_query
 )
-
+from Tasks import run_load_flow_task, run_contingency_task, run_opf_task, run_short_circuit_task
 analysis_bp = Blueprint("analysis", __name__, url_prefix = "/api/analyses")
 
 
@@ -46,7 +46,7 @@ def _create_job(network_id : int, user_id : int, analysis_type : AnalysisType, c
         status = AnalysisStatus.PENDING,
     )
     job.config = config
-    db.session.add(config)
+    db.session.add(job)
     db.session.commit()
     return job 
 
@@ -147,7 +147,7 @@ def run_load_flow():
     _, err = require_fields(data, ['network_id'])
     if err:
         return err
-    net = _accessible_network(int(data['network_id'], user))
+    net = _accessible_network(int(data['network_id']), user)
     if net is None:
         return fail('Network not Found', 404)
     algo = data.get("algorithm", "nr")
@@ -161,7 +161,9 @@ def run_load_flow():
         "check_violations": bool(data.get("check_violation", True)),
     }
     job = _create_job(net.id, user.id, AnalysisType.LOAD_FLOW, config)
-    #TODO; task= run_load_flow_task.delay(job.id); job.task_id = task_id
+    task = run_load_flow_task.delay(job.id)
+    job.task_id = task.id
+    db.session.commit()
     return ok(
         data={"job": job.to_dict()},
         message= "Load-Flow analysis queued",
@@ -195,6 +197,8 @@ def run_short_circuit():
         "1v_tol_present": float(data.get("1v_tol_percent", 10.0)),
     }
     job = _create_job(net.id, user.id, AnalysisType.SHORT_CIRCUIT, config)
+    task = run_short_circuit_task.delay(job.id)
+    job.task_id = task.id
     return ok(
         data = {"job" : job.to_dict()},
         message = "Short-Circuit analysis queued",
@@ -222,6 +226,8 @@ def run_contingency():
         "check_v_max_pu": float(data.get('Check_v_max_pu', 1.05)),
         }
     job = _create_job(net.id, user.id, AnalysisType.CONTINGENCY, config)
+    task = run_contingency_task.delay(job.id)
+    job.task_id = task.id
     return ok(
         data = {"job" : job.to_dict()},
         message= "Contingency Analysis queued",
@@ -246,6 +252,8 @@ def run_opf():
         'objective': data.get("objective", "min_cost")
     }
     job = _create_job(net.id, user.id, AnalysisType.OPTIMAL_POWER_FLOW, config)
+    task = run_opf_task.delay(job.id)
+    job.task_id = task.id
     return ok(
         data = {"job": job.to_dict()},
         message= "OPF Analysis Queued",

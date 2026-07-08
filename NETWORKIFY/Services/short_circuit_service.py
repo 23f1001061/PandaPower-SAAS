@@ -45,6 +45,46 @@ class ShortCircuitService:
         db.session.commit()
         try:
             net = PandapowerService.build_net_from_db(job.network_id)
+            if len(net.ext_grid):
+                default_s_sc = float(cfg.get("default_s_sc_mva", 1000.0))
+                default_rx   = float(cfg.get("default_rx", 0.1))
+                if "s_sc_max_mva" not in net.ext_grid.columns:
+                    net.ext_grid["s_sc_max_mva"] = default_s_sc
+                else:
+                    net.ext_grid["s_sc_max_mva"] = net.ext_grid["s_sc_max_mva"].fillna(default_s_sc)
+                if "s_sc_min_mva" not in net.ext_grid.columns:
+                    net.ext_grid["s_sc_min_mva"] = default_s_sc
+                else:
+                    net.ext_grid["s_sc_min_mva"] = net.ext_grid["s_sc_min_mva"].fillna(default_s_sc)
+                # rx ratios are also required for SC; default if missing
+                for col in ("rx_max", "rx_min"):
+                    if col not in net.ext_grid.columns:
+                        net.ext_grid[col] = default_rx
+                    else:
+                        net.ext_grid[col] = net.ext_grid[col].fillna(default_rx)
+                # Generators need SC-specific params for IEC 60909.
+            if len(net.gen):
+                gen_defaults = {
+                    "vn_kv":      None,   # filled per-gen from its bus below
+                    "xdss_pu":    0.2,    # subtransient reactance (typical)
+                    "rdss_ohm":   0.0,
+                    "cos_phi":    0.85,
+                    "pg_percent": 0.0,
+                }
+                for col, val in gen_defaults.items():
+                    if col not in net.gen.columns:
+                        net.gen[col] = val
+                # vn_kv per generator = its bus's nominal voltage
+                for idx in net.gen.index:
+                    if net.gen.at[idx, "vn_kv"] is None or (
+                        isinstance(net.gen.at[idx, "vn_kv"], float)
+                        and net.gen.at[idx, "vn_kv"] != net.gen.at[idx, "vn_kv"]  # NaN check
+                    ):
+                        bus_i = net.gen.at[idx, "bus"]
+                        net.gen.at[idx, "vn_kv"] = float(net.bus.at[bus_i, "vn_kv"])
+                # fill any remaining NaNs in the numeric SC columns
+                for col in ("xdss_pu", "rdss_ohm", "cos_phi"):
+                    net.gen[col] = net.gen[col].fillna(gen_defaults[col])
             sc.calc_sc(
                 net,
                 fault= cls.PP_FAULT_NAME[fault_key],

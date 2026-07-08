@@ -1,6 +1,7 @@
-
-import eventlet
-eventlet.monkey_patch()
+import os
+if os.environ.get("NETWORKIFY_WORKER") != "1":
+    import eventlet
+    eventlet.monkey_patch()
 
 import os
 import click

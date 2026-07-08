@@ -228,6 +228,7 @@ class Transformer(db.Model):
     network     = db.relationship("PowerNetwork", back_populates="transformers")
     hv_bus      = db.relationship("Bus", foreign_keys=[hv_bus_id])
     lv_bus      = db.relationship("Bus", foreign_keys=[lv_bus_id])
+    shift_degree = db.Column(db.Float, default = 0.0, nullable = False)
 
     __table_args__ = (
         db.UniqueConstraint("network_id", "pp_index", name="uq_trafo_network_ppindex"),

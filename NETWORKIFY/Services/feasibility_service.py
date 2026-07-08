@@ -143,7 +143,7 @@ class FeasibilityService():
                 f"{max_drop:.1f}% target"
             )
             upgrade_needed.append("Larger Conductor or dedicated express feeder")
-        sc_ok = bool | None = None
+        sc_ok: bool | None = None
         if sub.s_sc_max_mva is not None:
             sc_ok = sub.s_sc_max_mva >= demand_mva *10
             if not sc_ok:

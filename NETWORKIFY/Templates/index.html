@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NETWORKIFY — Power System Analysis Platform</title>
+  <meta name="description" content="Grid feasibility, load flow, short-circuit, and contingency analysis for consultant engineers." />
+
+  <!-- ================================================================
+       FONTS
+       Bebas Neue  — display / brand
+       JetBrains Mono — data, numbers, code
+       Manrope — body text
+  ================================================================ -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- ================================================================
+       TAILWIND CSS (CDN — play mode, no build step)
+  ================================================================ -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Bebas Neue"', 'sans-serif'],
+            mono:    ['"JetBrains Mono"', 'monospace'],
+            body:    ['Manrope', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50:  '#fffbeb',
+              100: '#fef3c7',
+              200: '#fde68a',
+              300: '#fcd34d',
+              400: '#fbbf24',
+              500: '#f59e0b',   /* amber — primary accent */
+              600: '#d97706',
+              700: '#b45309',
+              800: '#92400e',
+              900: '#78350f',
+            },
+            grid: {
+              50:  '#f0f4ff',
+              100: '#e1e9ff',
+              200: '#c3d3ff',
+              300: '#a5bcff',
+              400: '#879dff',
+              500: '#6979f8',
+              600: '#4c5bde',
+              700: '#3842b0',
+              800: '#252d84',
+              900: '#141a5e',
+            },
+            ink: {
+              50:  '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+              950: '#080e1a',
+            },
+          },
+          boxShadow: {
+            'amber-glow': '0 0 20px rgba(245,158,11,0.25)',
+            'amber-glow-lg': '0 0 40px rgba(245,158,11,0.20)',
+            'panel': '0 4px 24px rgba(0,0,0,0.4)',
+          },
+          backgroundImage: {
+            'grid-pattern': `linear-gradient(rgba(105,121,248,0.06) 1px, transparent 1px),
+                             linear-gradient(90deg, rgba(105,121,248,0.06) 1px, transparent 1px)`,
+            'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E\")",
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- ================================================================
+       LEAFLET (maps — OSM tiles, no key)
+  ================================================================ -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- ================================================================
+       CHART.JS
+  ================================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+  <!-- ================================================================
+       SOCKET.IO CLIENT
+  ================================================================ -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <!-- ================================================================
+       LUCIDE ICONS
+  ================================================================ -->
+  <script src="https://unpkg.com/lucide@0.441.0/dist/umd/lucide.min.js"></script>
+
+  <!-- ================================================================
+       APP STYLESHEET
+  ================================================================ -->
+  <link rel="stylesheet" href="/Templates/css/app.css" />
+</head>
+
+<body class="bg-ink-950 text-ink-100 font-body antialiased min-h-screen overflow-x-hidden">
+
+  <!-- ================================================================
+       BACKGROUND  — subtle grid + noise texture
+  ================================================================ -->
+  <div class="fixed inset-0 bg-grid-pattern bg-[size:40px_40px] pointer-events-none z-0 opacity-100"></div>
+  <div class="fixed inset-0 bg-noise pointer-events-none z-0"></div>
+  <!-- Radial glow behind the sidebar -->
+  <div class="fixed top-0 left-0 w-96 h-96 bg-brand-500/5 rounded-full blur-3xl pointer-events-none z-0 -translate-x-1/2 -translate-y-1/2"></div>
+
+  <!-- ================================================================
+       LOADING SCREEN — shown until JS boots
+  ================================================================ -->
+  <div id="app-loader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink-950">
+    <div class="flex flex-col items-center gap-6">
+      <!-- Animated logo mark -->
+      <div class="relative">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" class="animate-pulse">
+          <rect x="2"  y="2"  width="60" height="60" rx="8" stroke="#f59e0b" stroke-width="2" fill="none"/>
+          <circle cx="16" cy="16" r="5" fill="#f59e0b"/>
+          <circle cx="48" cy="16" r="5" fill="#f59e0b"/>
+          <circle cx="16" cy="48" r="5" fill="#f59e0b"/>
+          <circle cx="48" cy="48" r="5" fill="#f59e0b"/>
+          <circle cx="32" cy="32" r="7" fill="#f59e0b" fill-opacity="0.9"/>
+          <line x1="16" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6"/>
+          <line x1="48" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6"/>
+          <line x1="16" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6"/>
+          <line x1="48" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6"/>
+        </svg>
+      </div>
+      <div class="text-center">
+        <h1 class="font-display text-4xl tracking-widest text-brand-500">NETWORKIFY</h1>
+        <p class="text-ink-400 font-mono text-xs tracking-widest mt-1">POWER SYSTEM ANALYSIS PLATFORM</p>
+      </div>
+      <!-- Progress bar -->
+      <div class="w-48 h-0.5 bg-ink-800 rounded-full overflow-hidden">
+        <div id="loader-bar" class="h-full bg-brand-500 rounded-full" style="width:0%;transition:width 0.4s ease"></div>
+      </div>
+      <p id="loader-status" class="font-mono text-xs text-ink-500 tracking-wider">INITIALISING...</p>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       AUTH PAGES  — shown when logged out
+       (login / register — no sidebar, full screen)
+  ================================================================ -->
+  <div id="auth-shell" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+      <!-- Auth card -->
+      <div class="relative bg-ink-900/80 backdrop-blur border border-ink-700/60 rounded-2xl shadow-panel overflow-hidden">
+        <!-- Amber top bar -->
+        <div class="h-1 w-full bg-gradient-to-r from-brand-600 via-brand-400 to-brand-600"></div>
+        <!-- Brand header -->
+        <div class="px-8 pt-8 pb-6 text-center border-b border-ink-800">
+          <div class="flex items-center justify-center gap-3 mb-2">
+            <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+              <rect x="2" y="2" width="60" height="60" rx="8" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
+              <circle cx="16" cy="16" r="5" fill="#f59e0b"/>
+              <circle cx="48" cy="16" r="5" fill="#f59e0b"/>
+              <circle cx="16" cy="48" r="5" fill="#f59e0b"/>
+              <circle cx="48" cy="48" r="5" fill="#f59e0b"/>
+              <circle cx="32" cy="32" r="7" fill="#f59e0b"/>
+              <line x1="16" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+              <line x1="48" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+              <line x1="16" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+              <line x1="48" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+            </svg>
+            <span class="font-display text-2xl tracking-widest text-brand-400">NETWORKIFY</span>
+          </div>
+          <p class="font-mono text-[10px] text-ink-500 tracking-[0.25em]">POWER SYSTEM ANALYSIS PLATFORM</p>
+        </div>
+        <!-- Page content injected here -->
+        <div id="auth-page" class="px-8 py-7"></div>
+      </div>
+      <p class="text-center text-ink-600 text-xs font-mono mt-4 tracking-wider">
+        © 2025 NETWORKIFY · PANDAPOWER BACKEND
+      </p>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       MAIN APP SHELL  — shown when logged in
+  ================================================================ -->
+  <div id="app-shell" class="hidden relative z-10 flex h-screen overflow-hidden">
+
+    <!-- ----------------------------------------------------------
+         SIDEBAR
+    ---------------------------------------------------------- -->
+    <aside id="sidebar"
+           class="flex-shrink-0 w-64 bg-ink-900/90 backdrop-blur border-r border-ink-800/80
+                  flex flex-col transition-all duration-300 ease-in-out">
+
+      <!-- Brand -->
+      <div class="px-5 py-5 border-b border-ink-800/80 flex items-center gap-3">
+        <svg width="32" height="32" viewBox="0 0 64 64" fill="none" class="flex-shrink-0">
+          <rect x="2" y="2" width="60" height="60" rx="8" stroke="#f59e0b" stroke-width="2.5" fill="none"/>
+          <circle cx="16" cy="16" r="5" fill="#f59e0b"/>
+          <circle cx="48" cy="16" r="5" fill="#f59e0b"/>
+          <circle cx="16" cy="48" r="5" fill="#f59e0b"/>
+          <circle cx="48" cy="48" r="5" fill="#f59e0b"/>
+          <circle cx="32" cy="32" r="7" fill="#f59e0b"/>
+          <line x1="16" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+          <line x1="48" y1="16" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+          <line x1="16" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+          <line x1="48" y1="48" x2="32" y2="32" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5"/>
+        </svg>
+        <div>
+          <span class="font-display text-xl tracking-widest text-brand-400 leading-none">NETWORKIFY</span>
+          <p class="font-mono text-[9px] text-ink-500 tracking-widest mt-0.5">ANALYSIS PLATFORM</p>
+        </div>
+      </div>
+
+      <!-- Nav links -->
+      <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5" id="sidebar-nav">
+
+        <p class="px-3 pt-2 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">Overview</p>
+
+        <a href="#/dashboard" class="nav-link" data-page="dashboard">
+          <i data-lucide="layout-dashboard" class="nav-icon"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <p class="px-3 pt-4 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">Network</p>
+
+        <a href="#/networks" class="nav-link" data-page="networks">
+          <i data-lucide="git-branch" class="nav-icon"></i>
+          <span>Networks</span>
+        </a>
+
+        <a href="#/substations" class="nav-link" data-page="substations">
+          <i data-lucide="zap" class="nav-icon"></i>
+          <span>Substations</span>
+        </a>
+
+        <p class="px-3 pt-4 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">Feasibility</p>
+
+        <a href="#/facilities" class="nav-link" data-page="facilities">
+          <i data-lucide="factory" class="nav-icon"></i>
+          <span>Facilities</span>
+        </a>
+
+        <p class="px-3 pt-4 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">Analysis</p>
+
+        <a href="#/analyses" class="nav-link" data-page="analyses">
+          <i data-lucide="activity" class="nav-icon"></i>
+          <span>Analysis Jobs</span>
+          <!-- Live running badge -->
+          <span id="nav-running-badge"
+                class="ml-auto hidden font-mono text-[9px] bg-brand-500/20 text-brand-400
+                       border border-brand-500/40 rounded px-1.5 py-0.5 leading-none">
+            <span id="nav-running-count">0</span> LIVE
+          </span>
+        </a>
+
+        <p class="px-3 pt-4 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">Export</p>
+
+        <a href="#/reports" class="nav-link" data-page="reports">
+          <i data-lucide="file-bar-chart" class="nav-icon"></i>
+          <span>Reports</span>
+        </a>
+
+        <!-- Admin only — shown/hidden by JS -->
+        <div id="nav-admin-section" class="hidden">
+          <p class="px-3 pt-4 pb-1 font-mono text-[9px] text-ink-600 tracking-[0.2em] uppercase">System</p>
+          <a href="#/admin" class="nav-link" data-page="admin">
+            <i data-lucide="shield" class="nav-icon"></i>
+            <span>Admin</span>
+          </a>
+        </div>
+
+      </nav>
+
+      <!-- Socket.IO status -->
+      <div class="px-5 py-3 border-t border-ink-800/80 flex items-center gap-2">
+        <span id="socket-dot" class="w-2 h-2 rounded-full bg-ink-600 transition-colors duration-500"></span>
+        <span id="socket-label" class="font-mono text-[10px] text-ink-500 tracking-wider">OFFLINE</span>
+        <div class="ml-auto">
+          <button id="sidebar-collapse-btn" class="text-ink-600 hover:text-ink-400 transition-colors">
+            <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- User chip -->
+      <div class="px-4 py-4 border-t border-ink-800/80">
+        <div class="flex items-center gap-3">
+          <div id="user-avatar"
+               class="w-8 h-8 rounded-lg bg-brand-500/20 border border-brand-500/40
+                      flex items-center justify-center font-mono text-xs text-brand-400 font-semibold flex-shrink-0">
+            ?
+          </div>
+          <div class="flex-1 min-w-0">
+            <p id="user-name"  class="text-sm font-medium text-ink-100 truncate">—</p>
+            <p id="user-role"  class="font-mono text-[10px] text-ink-500 tracking-wider uppercase">—</p>
+          </div>
+          <button id="logout-btn" title="Logout"
+                  class="text-ink-600 hover:text-red-400 transition-colors flex-shrink-0">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ----------------------------------------------------------
+         MAIN CONTENT AREA
+    ---------------------------------------------------------- -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+      <!-- Top bar -->
+      <header class="h-14 bg-ink-900/60 backdrop-blur border-b border-ink-800/80
+                     flex items-center px-6 gap-4 flex-shrink-0">
+
+        <!-- Mobile sidebar toggle -->
+        <button id="sidebar-toggle-btn"
+                class="lg:hidden text-ink-400 hover:text-ink-100 transition-colors">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Breadcrumb -->
+        <nav id="breadcrumb" class="flex items-center gap-2 font-mono text-xs text-ink-500">
+          <span class="text-brand-500">NETWORKIFY</span>
+          <span class="text-ink-700">/</span>
+          <span id="breadcrumb-page" class="text-ink-300">Dashboard</span>
+        </nav>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Real-time job indicator -->
+        <div id="topbar-job-indicator"
+             class="hidden items-center gap-2 px-3 py-1.5
+                    bg-brand-500/10 border border-brand-500/30
+                    rounded-lg font-mono text-xs text-brand-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse"></span>
+          <span id="topbar-job-label">1 JOB RUNNING</span>
+        </div>
+
+        <!-- Notification bell -->
+        <button id="notif-btn"
+                class="relative text-ink-400 hover:text-ink-100 transition-colors">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+          <span id="notif-badge"
+                class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full
+                       bg-brand-500 font-mono text-[9px] text-ink-950
+                       flex items-center justify-center font-bold">
+            0
+          </span>
+        </button>
+
+        <!-- Profile shortcut -->
+        <a href="#/profile"
+           class="w-8 h-8 rounded-lg bg-ink-800 border border-ink-700
+                  flex items-center justify-center font-mono text-xs
+                  text-ink-300 hover:border-brand-500/50 hover:text-brand-400
+                  transition-all duration-200">
+          <i data-lucide="user" class="w-4 h-4"></i>
+        </a>
+      </header>
+
+      <!-- Page content -->
+      <main id="page-content"
+            class="flex-1 overflow-y-auto p-6">
+        <!-- Router renders each page here -->
+      </main>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TOAST CONTAINER
+  ================================================================ -->
+  <div id="toast-container"
+       class="fixed top-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none">
+  </div>
+
+  <!-- ================================================================
+       MODAL OVERLAY
+  ================================================================ -->
+  <div id="modal-overlay"
+       class="hidden fixed inset-0 z-50 bg-ink-950/80 backdrop-blur-sm
+              flex items-center justify-center p-4">
+    <div id="modal-box"
+         class="relative w-full max-w-lg bg-ink-900 border border-ink-700/80
+                rounded-2xl shadow-panel overflow-hidden
+                transform transition-all duration-200">
+      <div class="h-0.5 w-full bg-gradient-to-r from-brand-600 via-brand-400 to-brand-600"></div>
+      <div id="modal-content" class="p-6"></div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       GLOBAL STYLES (injected after Tailwind so they win)
+  ================================================================ -->
+  <style>
+    /* Nav link base */
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #94a3b8;        /* ink-400 */
+      text-decoration: none;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .nav-link:hover {
+      background: rgba(245,158,11,0.08);
+      color: #fbbf24;        /* brand-400 */
+    }
+    .nav-link.active {
+      background: rgba(245,158,11,0.12);
+      color: #f59e0b;        /* brand-500 */
+      font-weight: 600;
+    }
+    .nav-link.active::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 20%; bottom: 20%;
+      width: 3px;
+      background: #f59e0b;
+      border-radius: 0 4px 4px 0;
+    }
+    .nav-icon {
+      width: 16px; height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Form inputs */
+    .nw-input {
+      width: 100%;
+      background: rgba(15,23,42,0.8);        /* ink-950 */
+      border: 1px solid #334155;              /* ink-700 */
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: 'Manrope', sans-serif;
+      font-size: 0.875rem;
+      color: #f1f5f9;                         /* ink-100 */
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .nw-input:focus {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+    }
+    .nw-input::placeholder { color: #475569; /* ink-600 */ }
+
+    /* Label */
+    .nw-label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #64748b;        /* ink-500 */
+      margin-bottom: 6px;
+    }
+
+    /* Primary button */
+    .nw-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px 20px;
+      background: #f59e0b;
+      color: #0f172a;        /* ink-950 */
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .nw-btn-primary:hover {
+      background: #fbbf24;
+      box-shadow: 0 0 20px rgba(245,158,11,0.35);
+    }
+    .nw-btn-primary:active { transform: scale(0.98); }
+    .nw-btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Secondary button */
+    .nw-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 16px;
+      background: transparent;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .nw-btn-secondary:hover {
+      border-color: #f59e0b;
+      color: #f59e0b;
+      background: rgba(245,158,11,0.06);
+    }
+
+    /* Danger button */
+    .nw-btn-danger {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      background: transparent;
+      color: #f87171;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border: 1px solid rgba(248,113,113,0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nw-btn-danger:hover {
+      background: rgba(248,113,113,0.1);
+      border-color: #f87171;
+    }
+
+    /* Data card */
+    .nw-card {
+      background: rgba(30,41,59,0.6);        /* ink-800/60 */
+      border: 1px solid rgba(51,65,85,0.7);  /* ink-700/70 */
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(4px);
+    }
+    .nw-card-header {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(51,65,85,0.5);
+    }
+
+    /* Stat card */
+    .nw-stat-card {
+      background: rgba(30,41,59,0.5);
+      border: 1px solid rgba(51,65,85,0.6);
+      border-radius: 12px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .nw-stat-card:hover {
+      border-color: rgba(245,158,11,0.3);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .nw-stat-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #d97706, #f59e0b, #d97706);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .nw-stat-card:hover::after { opacity: 1; }
+
+    /* Badge */
+    .nw-badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-radius: 4px;
+    }
+    .nw-badge-amber  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .nw-badge-green  { background: rgba(34,197,94,0.12);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+    .nw-badge-red    { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .nw-badge-blue   { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .nw-badge-slate  { background: rgba(100,116,139,0.15);color: #94a3b8; border: 1px solid rgba(100,116,139,0.3);}
+
+    /* Table */
+    .nw-table { width: 100%; border-collapse: collapse; }
+    .nw-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.625rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748b;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid rgba(51,65,85,0.6);
+      white-space: nowrap;
+    }
+    .nw-table td {
+      padding: 11px 14px;
+      font-size: 0.8125rem;
+      color: #cbd5e1;        /* ink-300 */
+      border-bottom: 1px solid rgba(51,65,85,0.3);
+    }
+    .nw-table tr:hover td { background: rgba(245,158,11,0.04); }
+    .nw-table .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+
+    /* Progress bar */
+    .nw-progress {
+      height: 4px;
+      background: rgba(51,65,85,0.6);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .nw-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #d97706, #f59e0b);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    /* Toast */
+    .nw-toast {
+      pointer-events: all;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 280px;
+      max-width: 380px;
+      background: rgba(15,23,42,0.95);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 0.8125rem;
+      color: #e2e8f0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      backdrop-filter: blur(8px);
+      animation: slideIn 0.25s ease;
+    }
+    .nw-toast.success { border-left: 3px solid #4ade80; }
+    .nw-toast.error   { border-left: 3px solid #f87171; }
+    .nw-toast.info    { border-left: 3px solid #f59e0b; }
+    .nw-toast.warning { border-left: 3px solid #fb923c; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0);    }
+    }
+    @keyframes slideOut {
+      from { opacity: 1; transform: translateX(0);    }
+      to   { opacity: 0; transform: translateX(20px); }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51,65,85,0.8);
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+
+    /* Loader animation */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .nw-spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(245,158,11,0.2);
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+
+    /* Page fade-in */
+    #page-content > * {
+      animation: pageFade 0.2s ease;
+    }
+    @keyframes pageFade {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0);   }
+    }
+
+    /* Empty state */
+    .nw-empty {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 20px; gap: 12px;
+      color: #475569;       /* ink-600 */
+      text-align: center;
+    }
+    .nw-empty svg { opacity: 0.3; }
+    .nw-empty p { font-size: 0.875rem; max-width: 300px; line-height: 1.6; }
+
+    /* Verdict colours */
+    .verdict-feasible             { color: #4ade80; }
+    .verdict-feasible_with_upgrade{ color: #fbbf24; }
+    .verdict-not_feasible         { color: #f87171; }
+    .verdict-insufficient_data    { color: #94a3b8; }
+
+    /* Map container */
+    .nw-map {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(51,65,85,0.6);
+    }
+    /* Override Leaflet's light-theme attribution */
+    .leaflet-control-attribution {
+      background: rgba(15,23,42,0.85) !important;
+      color: #64748b !important;
+      font-size: 10px !important;
+    }
+    .leaflet-control-attribution a { color: #f59e0b !important; }
+    .leaflet-bar a {
+      background: #1e293b !important;
+      color: #f59e0b !important;
+      border-color: #334155 !important;
+    }
+    .leaflet-bar a:hover { background: #334155 !important; }
+
+    /* Chart.js dark canvas background */
+    .nw-chart-container { position: relative; }
+
+    /* Sidebar collapsed */
+    body.sidebar-collapsed #sidebar { width: 64px; }
+    body.sidebar-collapsed #sidebar .nav-link span,
+    body.sidebar-collapsed #sidebar .nav-link .nav-running-badge,
+    body.sidebar-collapsed #sidebar p,
+    body.sidebar-collapsed #sidebar #user-name,
+    body.sidebar-collapsed #sidebar #user-role,
+    body.sidebar-collapsed #sidebar #socket-label,
+    body.sidebar-collapsed #sidebar .brand-text { display: none; }
+    body.sidebar-collapsed #sidebar .nav-link { justify-content: center; }
+    body.sidebar-collapsed #sidebar #user-avatar { margin: 0 auto; }
+  </style>
+
+  <!-- ================================================================
+       APPLICATION SCRIPTS
+       Load order matters — config first, then dependencies, then pages.
+  ================================================================ -->
+  <script src="/Templates/js/config.js"></script>
+  <script src="/Templates/js/api.js"></script>
+  <script src="/Templates/js/auth.js"></script>
+  <script src="/Templates/js/socket.js"></script>
+  <script src="/Templates/js/utils.js"></script>
+  <script src="/Templates/js/components.js"></script>
+
+  <!-- Pages -->
+  <script src="/Templates/js/pages/login.js"></script>
+  <script src="/Templates/js/pages/register.js"></script>
+  <script src="/Templates/js/pages/dashboard.js"></script>
+  <script src="/Templates/js/pages/networks.js"></script>
+  <script src="/Templates/js/pages/network-detail.js"></script>
+  <script src="/Templates/js/pages/analyses.js"></script>
+  <script src="/Templates/js/pages/analysis-result.js"></script>
+  <script src="/Templates/js/pages/substations.js"></script>
+  <script src="/Templates/js/pages/facilities.js"></script>
+  <script src="/Templates/js/pages/facility-detail.js"></script>
+  <script src="/Templates/js/pages/feasibility-result.js"></script>
+  <script src="/Templates/js/pages/reports.js"></script>
+  <script src="/Templates/js/pages/profile.js"></script>
+  <script src="/Templates/js/pages/admin.js"></script>
+
+  <!-- Router + bootstrap (must be last) -->
+  <script src="/Templates/js/router.js"></script>
+  <script src="/Templates/js/app.js"></script>
+</body>
+</html>

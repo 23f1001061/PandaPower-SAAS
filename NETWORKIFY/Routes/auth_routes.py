@@ -65,7 +65,7 @@ def register():
     user = Users(
         username = username,
         email = email,
-        password = bcrypt.generate_password_hash(password).decode('utf-8'),
+        password_hash = bcrypt.generate_password_hash(password).decode('utf-8'),
         full_name = data.get('full_name'),
         company        = data.get("company"),
         license_number = data.get("license_number"),

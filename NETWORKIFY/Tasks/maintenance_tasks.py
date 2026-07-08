@@ -64,7 +64,8 @@ def reset_monthly_quotas_task(self):
     next_month = (now.replace(month = now.month %12 +1 , day = 1, hour = 0, minute = 0, second = 0, microsecond = 0)
                 if now.month < 12
                 else now.replace(year = now.year + 1,month=1, day=1,hour=0, minute=0, second=0, microsecond=0))
-    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) 
+    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    created = 0
     active = (Subscription.query.filter(Subscription.status.in_([
             SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL
     ])).all())
@@ -96,8 +97,8 @@ def reset_monthly_quotas_task(self):
 
 
 
-@celery.task(name = 'maintenence.purge_old_audit_logs', bind = True, max_retries = 0)
-def purge_old_audit_logs(self, retention_days: int = 365):
+@celery.task(name = 'maintenance.purge_old_audit_logs', bind = True, max_retries = 0)
+def purge_old_audit_logs_task(self, retention_days: int = 365):
     cutoff = datetime.now(timezone.utc) - timedelta(days= retention_days)
     deleted = (db.session.query(AuditLog)
                .filter(AuditLog.created_at < cutoff)

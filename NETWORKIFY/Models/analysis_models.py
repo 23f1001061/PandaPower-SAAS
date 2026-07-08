@@ -56,8 +56,8 @@ class AnalysisJob(db.Model):
 
     # Runtime
     created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    started_at    = db.Column(db.DateTime, nullable=True)
-    completed_at  = db.Column(db.DateTime, nullable=True)
+    started_at    = db.Column(db.DateTime(timezone = True), nullable=True)
+    completed_at  = db.Column(db.DateTime(timezone = True), nullable=True)
     duration_sec  = db.Column(db.Float,   nullable=True)
     progress_pct  = db.Column(db.Float,   default=0.0)
 
