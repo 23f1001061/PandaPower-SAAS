@@ -1,5 +1,6 @@
-/.venv
+.venv/ 
 .python-version
 README.md
 uv.lock
 .env
+**/__pycache__/

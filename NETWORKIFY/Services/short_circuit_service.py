@@ -39,7 +39,7 @@ class ShortCircuitService:
             raise ValueError(f'Invalid Fault type : {fault_key}')
         case = cfg.get('case', 'max')
         buses_cfg = cfg.get('fault_buses') or []
-        lv_tol = cfg.get('1v_tol_percent', 10.0)
+        lv_tol = cfg.get('lv_tol_percent', 10.0)
         job.status = AnalysisStatus.RUNNING
         job.started_at = datetime.now(timezone.utc)
         db.session.commit()
@@ -65,12 +65,17 @@ class ShortCircuitService:
                 # Generators need SC-specific params for IEC 60909.
             if len(net.gen):
                 gen_defaults = {
-                    "vn_kv":      None,   # filled per-gen from its bus below
+                    "vn_kv":      None,
+                # filled per-gen from its bus below
                     "xdss_pu":    0.2,    # subtransient reactance (typical)
                     "rdss_ohm":   0.0,
                     "cos_phi":    0.85,
                     "pg_percent": 0.0,
                 }
+                if "sn_mva" not in net.gen.columns: 
+                    net.gen['sn_mva'] = net.gen['p_mw'].abs().clip(lower = 1.0)
+                else:
+                    net.gen['sn_mva'] = net.gen['sn_mva'].fillna(net.gen['p_mw'].abs().clip(lower = 1.0))
                 for col, val in gen_defaults.items():
                     if col not in net.gen.columns:
                         net.gen[col] = val
@@ -85,17 +90,20 @@ class ShortCircuitService:
                 # fill any remaining NaNs in the numeric SC columns
                 for col in ("xdss_pu", "rdss_ohm", "cos_phi"):
                     net.gen[col] = net.gen[col].fillna(gen_defaults[col])
+            peak = fault_key in ("3ph", "1ph")
             sc.calc_sc(
                 net,
                 fault= cls.PP_FAULT_NAME[fault_key],
                 case = case,
                 lv_tol_percent= lv_tol,
-                ip = True,
-                ith = True,
+                ip = peak,
+                ith = peak,
             )
             results = cls._extract_results(net)
             job.results = results
             job.converged = True
+            if not hasattr(net, "res_bus_sc") or net.res_bus_sc is None or not len(net.res_bus_sc):
+                raise ValueError("Short-circuit produced no bus results — check network has a valid source (ext_grid or gen).")
             target_indices = (
                 [int(b) for b in buses_cfg]
                 if buses_cfg
@@ -125,7 +133,9 @@ class ShortCircuitService:
                 ))
             job.status = AnalysisStatus.COMPLETED
             job.completed_at = datetime.now(timezone.utc)
-            job.duration_sec = (job.completed_at - job.started_at).total_seconds()
+            _c = job.completed_at if job.completed_at.tzinfo else job.completed_at.replace(tzinfo= timezone.utc)
+            _s = job.started_at if job.started_at.tzinfo else  job.started_at.replace(tzinfo= timezone.utc)
+            job.duration_sec = ( _c - _s ).total_seconds()
             job.progress_pct = 100.0
             db.session.commit()
             return {
@@ -144,7 +154,7 @@ class ShortCircuitService:
     @staticmethod
     def _extract_results(net) -> dict[str, Any]:
         def _df(tbl):
-            return tbl.reset_index().to_dict('record') if tbl is not None and len(tbl) else []
+            return tbl.reset_index().to_dict('records') if tbl is not None and len(tbl) else []
         out = {
             "res_bus_sc":  _df(getattr(net, "res_bus_sc",  None)),
             "res_line_sc": _df(getattr(net, "res_line_sc", None)),

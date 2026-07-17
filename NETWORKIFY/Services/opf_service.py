@@ -44,7 +44,9 @@ class OPFService:
             job.results = results
             job.status = AnalysisStatus.COMPLETED
             job.completed_at = datetime.now(timezone.utc)
-            job.duration_sec = (job.completed_at - job.started_at).total_seconds()
+            _c = job.completed_at if job.completed_at.tzinfo else job.completed_at.replace(tzinfo= timezone.utc)
+            _s = job.started_at if job.started_at.tzinfo else  job.started_at.replace(tzinfo= timezone.utc)
+            job.duration_sec = ( _c - _s ).total_seconds()
             job.progress_pct = 100.0
             db.session.commit()
             return {'job_id' : job_id, 'converged': converged, 'results': results}
